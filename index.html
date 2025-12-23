@@ -30,19 +30,13 @@
         .button {
             display: inline-block;
             background: linear-gradient(90deg, #FF69B4, #FF1493);
-            color: white;
+            color: white !important;
             text-decoration: none;
             padding: 14px 32px;
             border-radius: 16px;
             font-weight: 600;
             font-size: 16px;
             box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
-            cursor: pointer;
-            border: none;
-        }
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(255, 105, 180, 0.5);
         }
         .footer {
             margin-top: 20px;
@@ -54,10 +48,10 @@
             padding: 12px;
             background: #f5f5f5;
             border-radius: 8px;
-            font-size: 11px;
+            font-size: 10px;
             color: #666;
             word-break: break-all;
-            display: none;
+            text-align: left;
         }
     </style>
 </head>
@@ -65,73 +59,63 @@
     <div class="container">
         <div class="icon" id="icon">✨</div>
         <h1 id="title">You're All Set!</h1>
-        <p id="message">Your email has been verified.<br><br>Tap below to open <span class="bloom">Bloom</span> and start your beauty journey! 🌸</p>
-        <button class="button" id="button" onclick="openApp()">Open Bloom</button>
-        <p class="footer">If the button doesn't work, open the Bloom app manually.</p>
+        <p id="message">Your email has been verified.<br><br>Tap below to open <span class="bloom">Bloom</span>! 🌸</p>
+        <a href="bloom://auth/callback" class="button" id="button">Open Bloom</a>
+        <p class="footer" id="footer">If the app doesn't open, make sure Bloom is installed.</p>
         <div class="debug" id="debug"></div>
     </div>
 
     <script>
-        // Get params from URL query string
-        const urlParams = new URLSearchParams(window.location.search);
-        
-        // Get params from hash fragment (Supabase often puts tokens here)
+        // Get params from hash fragment (Supabase puts tokens here)
         const hashString = window.location.hash.substring(1);
         const hashParams = new URLSearchParams(hashString);
         
+        // Get params from URL query string (backup)
+        const urlParams = new URLSearchParams(window.location.search);
+        
         // Check type from both sources
-        const type = urlParams.get('type') || hashParams.get('type');
+        const type = hashParams.get('type') || urlParams.get('type');
+        const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
+        
         const isRecovery = type === 'recovery';
         
-        // Build the full hash to pass to the app
-        const fullHash = window.location.hash || '';
-        const fullSearch = window.location.search || '';
-        
-        // Debug info (hidden by default)
-        document.getElementById('debug').innerHTML = 
-            'Type: ' + type + '<br>' +
-            'Hash: ' + fullHash.substring(0, 50) + '...<br>' +
-            'Search: ' + fullSearch.substring(0, 50) + '...';
-        
+        // Build the deep link URL
         let appUrl = 'bloom://auth/callback';
         
         if (isRecovery) {
-            // Password Reset flow
+            // PASSWORD RESET flow - include tokens in the URL
             document.getElementById('icon').textContent = '🔐';
             document.getElementById('title').textContent = 'Reset Your Password';
             document.getElementById('message').innerHTML = 
-                'You\'re almost there!<br><br>Tap below to open <span class="bloom">Bloom</span> and set your new password. 🌸';
+                'Tap below to open <span class="bloom">Bloom</span> and set your new password. 🌸';
             document.getElementById('button').textContent = 'Reset Password';
             
-            // Pass tokens to app via hash fragment
-            appUrl = 'bloom://reset-password' + fullHash;
-            
-            // If tokens are in query string instead, convert to hash
-            if (!fullHash && fullSearch) {
-                appUrl = 'bloom://reset-password#' + fullSearch.substring(1);
-            }
+            // Build URL with tokens as query params (more reliable than hash)
+            appUrl = 'bloom://reset-password?type=recovery';
+            if (accessToken) appUrl += '&access_token=' + encodeURIComponent(accessToken);
+            if (refreshToken) appUrl += '&refresh_token=' + encodeURIComponent(refreshToken);
         } else {
-            // Email verification - pass any tokens too
-            appUrl = 'bloom://auth/callback' + fullHash;
-            if (!fullHash && fullSearch) {
-                appUrl = 'bloom://auth/callback#' + fullSearch.substring(1);
+            // EMAIL VERIFICATION flow
+            if (accessToken) {
+                appUrl = 'bloom://auth/callback?access_token=' + encodeURIComponent(accessToken);
+                if (refreshToken) appUrl += '&refresh_token=' + encodeURIComponent(refreshToken);
+                if (type) appUrl += '&type=' + encodeURIComponent(type);
             }
         }
         
-        console.log('App URL:', appUrl);
+        // Set the button href
+        document.getElementById('button').href = appUrl;
         
-        function openApp() {
-            // Try to open the app
-            window.location.href = appUrl;
-            
-            // Show debug info if it doesn't work
-            setTimeout(function() {
-                document.getElementById('debug').style.display = 'block';
-            }, 2000);
-        }
+        // Debug info
+        document.getElementById('debug').innerHTML = 
+            '<strong>Debug Info:</strong><br>' +
+            'Type: ' + (type || 'none') + '<br>' +
+            'Has Access Token: ' + (accessToken ? 'Yes' : 'No') + '<br>' +
+            'Is Recovery: ' + isRecovery + '<br>' +
+            'App URL: ' + appUrl.substring(0, 80) + '...';
         
-        // Auto-open app after short delay (optional)
-        // setTimeout(openApp, 500);
+        console.log('Full App URL:', appUrl);
     </script>
 </body>
 </html>
