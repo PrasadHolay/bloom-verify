@@ -45,22 +45,12 @@
         .requirement .dot { width: 6px; height: 6px; border-radius: 50%; background: #ddd; }
         .requirement.met .dot { background: #2ecc71; }
         .loading { display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        .loading-pink { border-color: #FFB6C1; border-top-color: #FF69B4; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .hidden { display: none !important; }
-        .loading-container { padding: 40px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Loading View -->
-        <div id="loadingView" class="hidden">
-            <div class="loading-container">
-                <div class="loading loading-pink" style="width: 40px; height: 40px; border-width: 3px;"></div>
-            </div>
-            <p>Setting up your session...</p>
-        </div>
-
         <!-- Email Verification View -->
         <div id="verifyView" class="hidden">
             <div class="icon">✨</div>
@@ -107,24 +97,21 @@
             <p class="footer">You can now close this page.</p>
         </div>
         
-        <!-- Error/Expired View -->
+        <!-- Error View -->
         <div id="errorView" class="hidden">
             <div class="icon">😕</div>
             <h1>Link Expired</h1>
-            <p>This password reset link has expired or has already been used.<br><br>Please request a new reset link from the <span class="bloom">Bloom</span> app.</p>
+            <p>This reset link has expired or is invalid.<br><br>Please request a new one from the app.</p>
             <a href="bloom://auth/callback" class="button gray">Open Bloom</a>
             <p class="footer">Reset links expire after 1 hour.</p>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/dist/umd/supabase.min.js"></script>
     
     <script>
         const SUPABASE_URL = 'https://ujzxxthmohecrhtnfenp.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqenh4dGhtb2hlY3JodG5mZW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjU0NTMxNjAsImV4cCI6MjA0MTAyOTE2MH0.ycXE4sduBMCvFrzGC0YOdoKv2BOhP5BLIoxhfHXB2vI';
-        
-        // Initialize Supabase client globally
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqenh4dGhtb2hlY3JodG5mZW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwNDY1MTYsImV4cCI6MjA2ODYyMjUxNn0.wMFpNbec6z6Z4uHjPFoJw6f_Gfzxg3dVnjZHAxuMZOE';
         
         // Parse URL
         const hashString = window.location.hash.substring(1);
@@ -138,64 +125,49 @@
         
         const isRecovery = type === 'recovery';
         const isError = error === 'access_denied' || errorCode === 'otp_expired';
-        const isEmailVerification = type === 'signup' || type === 'email' || type === 'magiclink';
         
-        console.log('Type:', type, 'Error:', error, 'Has tokens:', !!accessToken);
+        let supabaseClient = null;
         
-        // Initialize the page
         async function initPage() {
-            if (isError) {
-                // EXPIRED OR ERROR
-                document.getElementById('errorView').classList.remove('hidden');
-            } else if (isRecovery && accessToken && refreshToken) {
-                // PASSWORD RESET - Show loading first
-                document.getElementById('loadingView').classList.remove('hidden');
+            try {
+                if (isError) {
+                    document.getElementById('errorView').classList.remove('hidden');
+                    return;
+                }
                 
-                try {
-                    // Set the session and WAIT for it
-                    const { data, error: sessionError } = await supabaseClient.auth.setSession({
+                if (isRecovery && accessToken && refreshToken) {
+                    // Initialize Supabase
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    
+                    // Set session
+                    const { error: sessionError } = await supabaseClient.auth.setSession({
                         access_token: accessToken,
                         refresh_token: refreshToken
                     });
                     
                     if (sessionError) {
                         console.error('Session error:', sessionError);
-                        document.getElementById('loadingView').classList.add('hidden');
                         document.getElementById('errorView').classList.remove('hidden');
                         return;
                     }
                     
-                    // Verify session is set
+                    // Verify session
                     const { data: { session } } = await supabaseClient.auth.getSession();
                     
-                    if (!session) {
-                        console.error('No session after setSession');
-                        document.getElementById('loadingView').classList.add('hidden');
+                    if (session) {
+                        document.getElementById('resetView').classList.remove('hidden');
+                    } else {
                         document.getElementById('errorView').classList.remove('hidden');
-                        return;
                     }
-                    
-                    console.log('Session set successfully for:', session.user?.email);
-                    
-                    // Show reset form
-                    document.getElementById('loadingView').classList.add('hidden');
-                    document.getElementById('resetView').classList.remove('hidden');
-                    
-                } catch (err) {
-                    console.error('Init error:', err);
-                    document.getElementById('loadingView').classList.add('hidden');
-                    document.getElementById('errorView').classList.remove('hidden');
+                } else {
+                    document.getElementById('verifyView').classList.remove('hidden');
                 }
-            } else if (isEmailVerification || (!type && !error)) {
-                // EMAIL VERIFICATION or default
-                document.getElementById('verifyView').classList.remove('hidden');
-            } else {
-                // Default to verification
-                document.getElementById('verifyView').classList.remove('hidden');
+            } catch (err) {
+                console.error('Init error:', err);
+                document.getElementById('errorView').classList.remove('hidden');
             }
         }
         
-        // Run init
         initPage();
         
         function checkRequirements() {
@@ -213,12 +185,11 @@
         
         async function handleReset(event) {
             event.preventDefault();
+            document.getElementById('errorMsg').style.display = 'none';
+            
             const password = document.getElementById('newPassword').value;
             const confirm = document.getElementById('confirmPassword').value;
             const btn = document.getElementById('submitBtn');
-            
-            // Hide previous errors
-            document.getElementById('errorMsg').style.display = 'none';
             
             if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
             if (password !== confirm) { showError('Passwords do not match.'); return; }
@@ -227,36 +198,19 @@
             btn.innerHTML = '<span class="loading"></span>';
             
             try {
-                // Double-check session exists
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                console.log('Current session before update:', !!session);
-                
-                if (!session) {
-                    showError('Session expired. Please request a new reset link.');
-                    btn.disabled = false;
-                    btn.textContent = 'Reset Password';
-                    return;
-                }
-                
-                // Update password
-                const { data, error } = await supabaseClient.auth.updateUser({ 
-                    password: password 
-                });
+                const { error } = await supabaseClient.auth.updateUser({ password });
                 
                 if (error) {
-                    console.error('Update error:', error);
                     showError(error.message);
                     btn.disabled = false;
                     btn.textContent = 'Reset Password';
                     return;
                 }
                 
-                console.log('Password updated successfully!');
                 document.getElementById('resetView').classList.add('hidden');
                 document.getElementById('successView').classList.remove('hidden');
                 
             } catch (err) {
-                console.error('Reset error:', err);
                 showError('Something went wrong. Please try again.');
                 btn.disabled = false;
                 btn.textContent = 'Reset Password';
