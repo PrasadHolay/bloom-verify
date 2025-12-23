@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Verified - Bloom</title>
+    <title>Bloom</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
@@ -25,15 +25,60 @@
         }
         .icon { font-size: 64px; margin-bottom: 20px; }
         h1 { color: #FF69B4; font-size: 24px; margin-bottom: 12px; }
-        p { color: #666; font-size: 16px; line-height: 1.5; }
+        p { color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 24px; }
         .bloom { color: #FF1493; font-weight: 600; }
+        .button {
+            display: inline-block;
+            background: linear-gradient(90deg, #FF69B4, #FF1493);
+            color: white;
+            text-decoration: none;
+            padding: 14px 32px;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 16px;
+            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 105, 180, 0.5);
+        }
+        .footer {
+            margin-top: 20px;
+            color: #999;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="icon">✨</div>
-        <h1>You're All Set!</h1>
-        <p>Your email has been verified.<br><br>Open the <span class="bloom">Bloom</span> app and sign in to start your beauty journey! 🌸</p>
+        <div class="icon" id="icon">✨</div>
+        <h1 id="title">You're All Set!</h1>
+        <p id="message">Your email has been verified.<br><br>Tap below to open <span class="bloom">Bloom</span> and start your beauty journey! 🌸</p>
+        <a href="bloom://auth/callback" class="button" id="button">Open Bloom</a>
+        <p class="footer">If the button doesn't work, open the Bloom app manually.</p>
     </div>
+
+    <script>
+        // Check URL params
+        const urlParams = new URLSearchParams(window.location.search);
+        const type = urlParams.get('type');
+        
+        // Also check hash fragment (Supabase sometimes puts params there)
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+        const hashType = hashParams.get('type');
+        
+        const isRecovery = type === 'recovery' || hashType === 'recovery';
+        
+        if (isRecovery) {
+            // Password Reset flow
+            document.getElementById('icon').textContent = '🔐';
+            document.getElementById('title').textContent = 'Reset Your Password';
+            document.getElementById('message').innerHTML = 
+                'You\'re almost there!<br><br>Tap below to open <span class="bloom">Bloom</span> and set your new password. 🌸';
+            document.getElementById('button').textContent = 'Reset Password';
+            document.getElementById('button').href = 'bloom://reset-password';
+        }
+    </script>
 </body>
 </html>
