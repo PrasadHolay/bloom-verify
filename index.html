@@ -36,42 +36,33 @@
         .button { display: block; width: 100%; background: linear-gradient(90deg, #FF69B4, #FF1493); color: white; border: none; padding: 14px 24px; border-radius: 14px; font-weight: 600; font-size: 15px; cursor: pointer; text-decoration: none; }
         .button:disabled { opacity: 0.6; cursor: not-allowed; }
         .button.success { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+        .button.gray { background: #999; }
         .footer { margin-top: 20px; color: #999; font-size: 12px; }
-        .error { background: #ffebee; color: #c62828; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+        .error-box { background: #ffebee; color: #c62828; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
         .requirements { text-align: left; margin-bottom: 16px; }
         .requirement { font-size: 12px; color: #999; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
         .requirement.met { color: #2ecc71; }
         .requirement .dot { width: 6px; height: 6px; border-radius: 50%; background: #ddd; }
         .requirement.met .dot { background: #2ecc71; }
         .loading { display: inline-block; width: 18px; height: 18px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .loading-pink { border-color: #FFB6C1; border-top-color: #FF69B4; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .hidden { display: none !important; }
-        
-        /* DEBUG BOX - ALWAYS VISIBLE */
-        .debug-box {
-            background: #fffbe6;
-            border: 2px solid #ffd700;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 20px;
-            font-size: 11px;
-            text-align: left;
-            word-break: break-all;
-            color: #333;
-        }
-        .debug-box strong { color: #b8860b; }
+        .loading-container { padding: 40px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- DEBUG BOX - ALWAYS VISIBLE -->
-        <div class="debug-box" id="debugBox">
-            <strong>🔍 DEBUG INFO:</strong><br>
-            Loading...
+        <!-- Loading View -->
+        <div id="loadingView" class="hidden">
+            <div class="loading-container">
+                <div class="loading loading-pink" style="width: 40px; height: 40px; border-width: 3px;"></div>
+            </div>
+            <p>Setting up your session...</p>
         </div>
 
         <!-- Email Verification View -->
-        <div id="verifyView">
+        <div id="verifyView" class="hidden">
             <div class="icon">✨</div>
             <h1>You're All Set!</h1>
             <p>Your email has been verified.<br><br>Open the <span class="bloom">Bloom</span> app and sign in! 🌸</p>
@@ -84,7 +75,7 @@
             <h1>Reset Your Password</h1>
             <p>Create a new password for your <span class="bloom">Bloom</span> account.</p>
             
-            <div class="error" id="errorMsg"></div>
+            <div class="error-box" id="errorMsg"></div>
             
             <form id="resetForm" onsubmit="handleReset(event)">
                 <div class="form-group">
@@ -115,70 +106,97 @@
             <a href="bloom://auth/callback" class="button success">Open Bloom</a>
             <p class="footer">You can now close this page.</p>
         </div>
+        
+        <!-- Error/Expired View -->
+        <div id="errorView" class="hidden">
+            <div class="icon">😕</div>
+            <h1>Link Expired</h1>
+            <p>This password reset link has expired or has already been used.<br><br>Please request a new reset link from the <span class="bloom">Bloom</span> app.</p>
+            <a href="bloom://auth/callback" class="button gray">Open Bloom</a>
+            <p class="footer">Reset links expire after 1 hour.</p>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <script>
-        // DEBUG: Show URL info immediately
-        const debugBox = document.getElementById('debugBox');
+        const SUPABASE_URL = 'https://ujzxxthmohecrhtnfenp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqenh4dGhtb2hlY3JodG5mZW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjU0NTMxNjAsImV4cCI6MjA0MTAyOTE2MH0.ycXE4sduBMCvFrzGC0YOdoKv2BOhP5BLIoxhfHXB2vI';
         
-        const fullUrl = window.location.href;
-        const hashString = window.location.hash;
-        const searchString = window.location.search;
+        // Initialize Supabase client globally
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
-        // Parse hash (remove the #)
-        const hashParams = new URLSearchParams(hashString.substring(1));
-        const queryParams = new URLSearchParams(searchString.substring(1));
+        // Parse URL
+        const hashString = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hashString);
         
-        // Get type from both
-        const hashType = hashParams.get('type');
-        const queryType = queryParams.get('type');
-        const type = hashType || queryType;
+        const type = hashParams.get('type');
+        const error = hashParams.get('error');
+        const errorCode = hashParams.get('error_code');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         
-        // Check if recovery
-        const isRecovery = type === 'recovery' || 
-                          fullUrl.includes('type=recovery') ||
-                          fullUrl.includes('type%3Drecovery');
+        const isRecovery = type === 'recovery';
+        const isError = error === 'access_denied' || errorCode === 'otp_expired';
+        const isEmailVerification = type === 'signup' || type === 'email' || type === 'magiclink';
         
-        // Get tokens
-        const accessToken = hashParams.get('access_token') || queryParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token') || queryParams.get('refresh_token');
+        console.log('Type:', type, 'Error:', error, 'Has tokens:', !!accessToken);
         
-        // Update debug box
-        debugBox.innerHTML = 
-            '<strong>🔍 DEBUG INFO:</strong><br><br>' +
-            '<strong>Full URL:</strong> ' + fullUrl.substring(0, 80) + '...<br><br>' +
-            '<strong>Hash:</strong> ' + (hashString ? hashString.substring(0, 50) + '...' : 'EMPTY') + '<br><br>' +
-            '<strong>Query:</strong> ' + (searchString ? searchString.substring(0, 50) + '...' : 'EMPTY') + '<br><br>' +
-            '<strong>Type (hash):</strong> ' + (hashType || 'null') + '<br>' +
-            '<strong>Type (query):</strong> ' + (queryType || 'null') + '<br><br>' +
-            '<strong style="color: ' + (isRecovery ? 'green' : 'red') + ';">Is Recovery: ' + isRecovery + '</strong><br>' +
-            '<strong>Has Tokens:</strong> ' + (!!accessToken && !!refreshToken);
-        
-        // Now show correct view
-        if (isRecovery) {
-            document.getElementById('verifyView').classList.add('hidden');
-            document.getElementById('resetView').classList.remove('hidden');
-            
-            // Initialize Supabase and set session
-            if (accessToken && refreshToken) {
-                const SUPABASE_URL = 'https://ujzxxthmohecrhtnfenp.supabase.co';
-                const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqenh4dGhtb2hlY3JodG5mZW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjU0NTMxNjAsImV4cCI6MjA0MTAyOTE2MH0.ycXE4sduBMCvFrzGC0YOdoKv2BOhP5BLIoxhfHXB2vI';
-                window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Initialize the page
+        async function initPage() {
+            if (isError) {
+                // EXPIRED OR ERROR
+                document.getElementById('errorView').classList.remove('hidden');
+            } else if (isRecovery && accessToken && refreshToken) {
+                // PASSWORD RESET - Show loading first
+                document.getElementById('loadingView').classList.remove('hidden');
                 
-                window.supabaseClient.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                }).then(({ error }) => {
-                    if (error) {
-                        debugBox.innerHTML += '<br><br><strong style="color:red;">Session Error:</strong> ' + error.message;
-                    } else {
-                        debugBox.innerHTML += '<br><br><strong style="color:green;">✅ Session Set!</strong>';
+                try {
+                    // Set the session and WAIT for it
+                    const { data, error: sessionError } = await supabaseClient.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken
+                    });
+                    
+                    if (sessionError) {
+                        console.error('Session error:', sessionError);
+                        document.getElementById('loadingView').classList.add('hidden');
+                        document.getElementById('errorView').classList.remove('hidden');
+                        return;
                     }
-                });
+                    
+                    // Verify session is set
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    
+                    if (!session) {
+                        console.error('No session after setSession');
+                        document.getElementById('loadingView').classList.add('hidden');
+                        document.getElementById('errorView').classList.remove('hidden');
+                        return;
+                    }
+                    
+                    console.log('Session set successfully for:', session.user?.email);
+                    
+                    // Show reset form
+                    document.getElementById('loadingView').classList.add('hidden');
+                    document.getElementById('resetView').classList.remove('hidden');
+                    
+                } catch (err) {
+                    console.error('Init error:', err);
+                    document.getElementById('loadingView').classList.add('hidden');
+                    document.getElementById('errorView').classList.remove('hidden');
+                }
+            } else if (isEmailVerification || (!type && !error)) {
+                // EMAIL VERIFICATION or default
+                document.getElementById('verifyView').classList.remove('hidden');
+            } else {
+                // Default to verification
+                document.getElementById('verifyView').classList.remove('hidden');
             }
         }
+        
+        // Run init
+        initPage();
         
         function checkRequirements() {
             const password = document.getElementById('newPassword').value;
@@ -199,6 +217,9 @@
             const confirm = document.getElementById('confirmPassword').value;
             const btn = document.getElementById('submitBtn');
             
+            // Hide previous errors
+            document.getElementById('errorMsg').style.display = 'none';
+            
             if (password.length < 6) { showError('Password must be at least 6 characters.'); return; }
             if (password !== confirm) { showError('Passwords do not match.'); return; }
             
@@ -206,18 +227,37 @@
             btn.innerHTML = '<span class="loading"></span>';
             
             try {
-                const { error } = await window.supabaseClient.auth.updateUser({ password });
+                // Double-check session exists
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                console.log('Current session before update:', !!session);
+                
+                if (!session) {
+                    showError('Session expired. Please request a new reset link.');
+                    btn.disabled = false;
+                    btn.textContent = 'Reset Password';
+                    return;
+                }
+                
+                // Update password
+                const { data, error } = await supabaseClient.auth.updateUser({ 
+                    password: password 
+                });
+                
                 if (error) {
+                    console.error('Update error:', error);
                     showError(error.message);
                     btn.disabled = false;
                     btn.textContent = 'Reset Password';
                     return;
                 }
+                
+                console.log('Password updated successfully!');
                 document.getElementById('resetView').classList.add('hidden');
                 document.getElementById('successView').classList.remove('hidden');
-                debugBox.innerHTML += '<br><br><strong style="color:green;">✅ Password Updated!</strong>';
+                
             } catch (err) {
-                showError('Something went wrong.');
+                console.error('Reset error:', err);
+                showError('Something went wrong. Please try again.');
                 btn.disabled = false;
                 btn.textContent = 'Reset Password';
             }
