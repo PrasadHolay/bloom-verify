@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bloom</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #FFF5F7 0%, #FFFFFF 50%, #FFF8FA 100%);
@@ -18,104 +21,294 @@
         .container {
             background: white;
             border-radius: 24px;
-            padding: 40px;
+            padding: 40px 32px;
             text-align: center;
             box-shadow: 0 10px 40px rgba(255, 105, 180, 0.15);
-            max-width: 320px;
+            max-width: 340px;
+            width: 100%;
         }
-        .icon { font-size: 64px; margin-bottom: 20px; }
-        h1 { color: #FF69B4; font-size: 24px; margin-bottom: 12px; }
-        p { color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 24px; }
+        .icon { font-size: 56px; margin-bottom: 16px; }
+        h1 { color: #FF69B4; font-size: 22px; margin-bottom: 8px; font-weight: 700; }
+        p { color: #666; font-size: 14px; line-height: 1.5; margin-bottom: 20px; }
         .bloom { color: #FF1493; font-weight: 600; }
-        .button {
-            display: inline-block;
-            background: linear-gradient(90deg, #FF69B4, #FF1493);
-            color: white !important;
-            text-decoration: none;
-            padding: 14px 32px;
-            border-radius: 16px;
-            font-weight: 600;
-            font-size: 16px;
-            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+        
+        .form-group {
+            margin-bottom: 16px;
+            text-align: left;
         }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1px solid rgba(255, 105, 180, 0.3);
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #FF69B4;
+        }
+        
+        .button {
+            display: block;
+            width: 100%;
+            background: linear-gradient(90deg, #FF69B4, #FF1493);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 105, 180, 0.4);
+            transition: transform 0.2s, opacity 0.2s;
+        }
+        .button:hover {
+            transform: translateY(-1px);
+        }
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .button.success {
+            background: linear-gradient(90deg, #2ecc71, #27ae60);
+        }
+        
         .footer {
             margin-top: 20px;
             color: #999;
-            font-size: 13px;
+            font-size: 12px;
         }
-        .debug {
-            margin-top: 16px;
-            padding: 12px;
-            background: #f5f5f5;
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 10px 14px;
             border-radius: 8px;
-            font-size: 10px;
-            color: #666;
-            word-break: break-all;
-            text-align: left;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
         }
+        
+        .requirements {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        .requirement {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .requirement.met {
+            color: #2ecc71;
+        }
+        .requirement .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #ddd;
+        }
+        .requirement.met .dot {
+            background: #2ecc71;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="icon" id="icon">✨</div>
-        <h1 id="title">You're All Set!</h1>
-        <p id="message">Your email has been verified.<br><br>Tap below to open <span class="bloom">Bloom</span>! 🌸</p>
-        <a href="bloom://auth/callback" class="button" id="button">Open Bloom</a>
-        <p class="footer" id="footer">If the app doesn't open, make sure Bloom is installed.</p>
-        <div class="debug" id="debug"></div>
+        <!-- Email Verification View -->
+        <div id="verifyView">
+            <div class="icon">✨</div>
+            <h1>You're All Set!</h1>
+            <p>Your email has been verified.<br><br>Open the <span class="bloom">Bloom</span> app and sign in to start your beauty journey! 🌸</p>
+            <a href="bloom://auth/callback" class="button" style="text-decoration: none; display: inline-block;">Open Bloom</a>
+        </div>
+        
+        <!-- Password Reset View -->
+        <div id="resetView" class="hidden">
+            <div class="icon">🔐</div>
+            <h1>Reset Your Password</h1>
+            <p>Create a new password for your <span class="bloom">Bloom</span> account.</p>
+            
+            <div class="error" id="errorMsg"></div>
+            
+            <form id="resetForm" onsubmit="handleReset(event)">
+                <div class="form-group">
+                    <label>New Password</label>
+                    <input type="password" id="newPassword" placeholder="Enter new password" required minlength="6" oninput="checkRequirements()">
+                </div>
+                
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" id="confirmPassword" placeholder="Confirm new password" required oninput="checkRequirements()">
+                </div>
+                
+                <div class="requirements">
+                    <div class="requirement" id="reqLength">
+                        <span class="dot"></span>
+                        <span>At least 6 characters</span>
+                    </div>
+                    <div class="requirement" id="reqMatch">
+                        <span class="dot"></span>
+                        <span>Passwords match</span>
+                    </div>
+                </div>
+                
+                <button type="submit" class="button" id="submitBtn">
+                    Reset Password
+                </button>
+            </form>
+            
+            <p class="footer">Make sure to remember your new password!</p>
+        </div>
+        
+        <!-- Success View -->
+        <div id="successView" class="hidden">
+            <div class="icon">🎉</div>
+            <h1>Password Updated!</h1>
+            <p>Your password has been reset successfully.<br><br>Open the <span class="bloom">Bloom</span> app and sign in with your new password! 🌸</p>
+            <a href="bloom://auth/callback" class="button success" style="text-decoration: none; display: inline-block;">Open Bloom</a>
+            <p class="footer">You can now close this page.</p>
+        </div>
     </div>
 
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <script>
-        // Get params from hash fragment (Supabase puts tokens here)
-        const hashString = window.location.hash.substring(1);
-        const hashParams = new URLSearchParams(hashString);
+        // Initialize Supabase
+        const SUPABASE_URL = 'https://ujzxxthmohecrhtnfenp.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVqenh4dGhtb2hlY3JodG5mZW5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjU0NTMxNjAsImV4cCI6MjA0MTAyOTE2MH0.ycXE4sduBMCvFrzGC0YOdoKv2BOhP5BLIoxhfHXB2vI';
         
-        // Get params from URL query string (backup)
-        const urlParams = new URLSearchParams(window.location.search);
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
-        // Check type from both sources
-        const type = hashParams.get('type') || urlParams.get('type');
-        const accessToken = hashParams.get('access_token') || urlParams.get('access_token');
-        const refreshToken = hashParams.get('refresh_token') || urlParams.get('refresh_token');
+        // Get tokens from URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const type = hashParams.get('type');
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
         
-        const isRecovery = type === 'recovery';
+        console.log('Type:', type, 'Has tokens:', !!accessToken);
         
-        // Build the deep link URL
-        let appUrl = 'bloom://auth/callback';
-        
-        if (isRecovery) {
-            // PASSWORD RESET flow - include tokens in the URL
-            document.getElementById('icon').textContent = '🔐';
-            document.getElementById('title').textContent = 'Reset Your Password';
-            document.getElementById('message').innerHTML = 
-                'Tap below to open <span class="bloom">Bloom</span> and set your new password. 🌸';
-            document.getElementById('button').textContent = 'Reset Password';
+        // Show appropriate view
+        if (type === 'recovery' && accessToken && refreshToken) {
+            // Password reset flow
+            document.getElementById('verifyView').classList.add('hidden');
+            document.getElementById('resetView').classList.remove('hidden');
             
-            // Build URL with tokens as query params (more reliable than hash)
-            appUrl = 'bloom://reset-password?type=recovery';
-            if (accessToken) appUrl += '&access_token=' + encodeURIComponent(accessToken);
-            if (refreshToken) appUrl += '&refresh_token=' + encodeURIComponent(refreshToken);
-        } else {
-            // EMAIL VERIFICATION flow
-            if (accessToken) {
-                appUrl = 'bloom://auth/callback?access_token=' + encodeURIComponent(accessToken);
-                if (refreshToken) appUrl += '&refresh_token=' + encodeURIComponent(refreshToken);
-                if (type) appUrl += '&type=' + encodeURIComponent(type);
+            // Set the session
+            supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+            }).then(({ error }) => {
+                if (error) {
+                    showError('Session expired. Please request a new password reset link.');
+                    console.error('Session error:', error);
+                }
+            });
+        }
+        
+        function checkRequirements() {
+            const password = document.getElementById('newPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            
+            const reqLength = document.getElementById('reqLength');
+            const reqMatch = document.getElementById('reqMatch');
+            
+            if (password.length >= 6) {
+                reqLength.classList.add('met');
+            } else {
+                reqLength.classList.remove('met');
+            }
+            
+            if (password && confirm && password === confirm) {
+                reqMatch.classList.add('met');
+            } else {
+                reqMatch.classList.remove('met');
             }
         }
         
-        // Set the button href
-        document.getElementById('button').href = appUrl;
+        function showError(message) {
+            const errorEl = document.getElementById('errorMsg');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
         
-        // Debug info
-        document.getElementById('debug').innerHTML = 
-            '<strong>Debug Info:</strong><br>' +
-            'Type: ' + (type || 'none') + '<br>' +
-            'Has Access Token: ' + (accessToken ? 'Yes' : 'No') + '<br>' +
-            'Is Recovery: ' + isRecovery + '<br>' +
-            'App URL: ' + appUrl.substring(0, 80) + '...';
+        function hideError() {
+            document.getElementById('errorMsg').style.display = 'none';
+        }
         
-        console.log('Full App URL:', appUrl);
+        async function handleReset(event) {
+            event.preventDefault();
+            hideError();
+            
+            const password = document.getElementById('newPassword').value;
+            const confirm = document.getElementById('confirmPassword').value;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // Validation
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters.');
+                return;
+            }
+            
+            if (password !== confirm) {
+                showError('Passwords do not match.');
+                return;
+            }
+            
+            // Show loading
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>';
+            
+            try {
+                const { error } = await supabase.auth.updateUser({
+                    password: password
+                });
+                
+                if (error) {
+                    showError(error.message);
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Reset Password';
+                    return;
+                }
+                
+                // Success!
+                document.getElementById('resetView').classList.add('hidden');
+                document.getElementById('successView').classList.remove('hidden');
+                
+            } catch (err) {
+                showError('Something went wrong. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Reset Password';
+                console.error('Reset error:', err);
+            }
+        }
     </script>
 </body>
 </html>
